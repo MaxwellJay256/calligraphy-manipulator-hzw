@@ -5,6 +5,7 @@ if nargin<1, cfg=calligraphy_config; end
 selected=1; characterSelected=1; result=[]; dragIndex=[]; busy=false; playing=false; velocityFigure=[];
 endVelocityFigure=[];
 accelerationFigure=[];
+depthClipboard=[]; depthManager=[];
 depthLine=[]; pointHandles=gobjects(6,1); pointLabels=gobjects(6,1);
 controlHandle=[]; spaceHandles={}; strokeProgress={};
 f=uifigure('Name','机械臂毛笔书写 | 六点提按规划','Position',[30 40 1450 900]);
@@ -20,14 +21,15 @@ copyButton=uibutton(bar,'Text','复制上一笔','ButtonPushedFcn',@copyStroke);
 loadButton=uibutton(bar,'Text','读取配置','ButtonPushedFcn',@loadConfig);
 saveButton=uibutton(bar,'Text','保存配置','ButtonPushedFcn',@saveConfig);
 modeLabel=uilabel(bar,'Text','未标定示例 | 深度为位置下压量','FontColor',[.65 .25 .06]);
-commands=uigridlayout(root,[1 7]); commands.Layout.Row=2;
-commands.ColumnWidth={140,140,125,140,130,140,'1x'}; commands.Padding=[0 0 0 0];
+commands=uigridlayout(root,[1 8]); commands.Layout.Row=2;
+commands.ColumnWidth={125,125,105,115,125,130,155,'1x'}; commands.Padding=[0 0 0 0];
 generateButton=uibutton(commands,'Text','生成轨迹并检查','ButtonPushedFcn',@generate);
 exportButton=uibutton(commands,'Text','导出 TXT / MAT','Enable','off','ButtonPushedFcn',@exportResult);
 playButton=uibutton(commands,'Text','播放 / 停止','Enable','off','ButtonPushedFcn',@play);
 simButton=uibutton(commands,'Text','准备 Simulink','Enable','off','ButtonPushedFcn',@prepareSim);
 uibutton(commands,'Text','打开输出文件夹','ButtonPushedFcn',@openOutput);
 sameCharacterButton=uibutton(commands,'Text','提按复制到同字','ButtonPushedFcn',@copySameCharacter);
+templatesButton=uibutton(commands,'Text','提按模板 / 批量应用','ButtonPushedFcn',@openDepthManager);
 uilabel(commands,'Text','准备 Simulink 只加载输入并打开模型；由你手动点击运行。');
 body=uigridlayout(root,[1 2]); body.Layout.Row=3; body.ColumnWidth={'1x',370}; body.Padding=[0 0 0 0];
 plots=uigridlayout(body,[2 2]); plots.Layout.Column=1;
@@ -65,6 +67,7 @@ app=struct('figure',f,'xyAxes',axXY,'depthAxes',axDepth,'spaceAxes',ax3, ...
     'pointTable',pointTable,'parameterTable',parameterTable,'strokeSelector',selector,'characterSelector',charSelector, ...
     'characterInput',charInput,'generateButton',generateButton,'exportButton',exportButton, ...
     'copySameCharacterButton',sameCharacterButton, ...
+    'depthTemplatesButton',templatesButton,'getDepthManager',@getDepthManager, ...
     'getConfig',@getConfig,'getResult',@getResult,'getGlyph',@getGlyph);
 
     function value=getConfig
@@ -75,6 +78,25 @@ app=struct('figure',f,'xyAxes',axXY,'depthAxes',axDepth,'spaceAxes',ax3, ...
     end
     function value=getGlyph
         value=glyph;
+    end
+    function value=getDepthManager
+        value=depthManager;
+    end
+    function openDepthManager(~,~)
+        if busy, return; end
+        try
+            if ~isempty(depthManager) && isvalid(depthManager.figure), delete(depthManager.figure); end
+            depthManager=calligraphy_depth_manager(f,cfg,glyph,selected,depthClipboard,@copyDepthClipboard,@applyDepthProfiles);
+        catch err, showError(err); end
+    end
+    function copyDepthClipboard(points)
+        depthClipboard=points;
+    end
+    function applyDepthProfiles(indices,points)
+        calligraphy_depth(points,0,cfg.maxDepth);
+        for k=indices(:).', cfg.depthProfiles{k}=points; end
+        invalidate; refresh;
+        setStatus(sprintf('已批量更新 %d 笔提按曲线，请重新生成轨迹。',numel(indices)));
     end
 
     function names=strokeNames
@@ -301,7 +323,7 @@ app=struct('figure',f,'xyAxes',axXY,'depthAxes',axDepth,'spaceAxes',ax3, ...
         busy=false; if isvalid(f), setControls('on'); end
     end
     function setControls(state)
-        controls={charInput,charSelector,selector,resetButton,copyButton,sameCharacterButton,loadButton,saveButton,generateButton,pointTable,parameterTable};
+        controls={charInput,charSelector,selector,resetButton,copyButton,sameCharacterButton,templatesButton,loadButton,saveButton,generateButton,pointTable,parameterTable};
         for k=1:numel(controls), controls{k}.Enable=state; end
     end
     function exportResult(~,~)
@@ -344,6 +366,7 @@ app=struct('figure',f,'xyAxes',axXY,'depthAxes',axDepth,'spaceAxes',ax3, ...
     function closeApp(~,~)
         if busy, setStatus('正在检查轨迹，完成后可关闭窗口。'); return; end
         playing=false;
+        if ~isempty(depthManager) && isvalid(depthManager.figure), delete(depthManager.figure); end
         if ~isempty(velocityFigure) && isgraphics(velocityFigure), delete(velocityFigure); end
         if ~isempty(endVelocityFigure) && isgraphics(endVelocityFigure), delete(endVelocityFigure); end
         if ~isempty(accelerationFigure) && isgraphics(accelerationFigure), delete(accelerationFigure); end

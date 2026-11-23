@@ -18,7 +18,7 @@ cfg.maxDepth = 8;
 cfg.depthProgress = [0 .2 .4 .6 .8 1];
 cfg.depthDefault = [0 .8 1.2 1.2 .6 0];
 cfg.depthProfiles = {};   % 每笔一个 6x2 [progress, depth_mm]
-cfg.paperOrigin = [468 0 520]; % 整段文字排版外框中心，基坐标系 mm
+cfg.paperOrigin = [500 0 602]; % 整段文字排版外框中心，基坐标系 mm
 % 安全起点/终点自动取基坐标 [370, 0, paperOrigin(3)+100] mm。
 cfg.paperRpyDeg = [0 0 90]; % 字的右方 -> 基坐标 +Y，字的下方 -> 基坐标 +X
 cfg.brushRpyDeg = [180 0 0]; % 笔尖坐标系相对纸面，笔杆朝下
